@@ -13,6 +13,26 @@ services:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: user_service_app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/user_service_db
+      JWT_SECRET: change-this-in-production
+      JWT_EXPIRES_IN: 7d
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
