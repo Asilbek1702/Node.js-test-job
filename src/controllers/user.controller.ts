@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import * as userService from '../services/user.service';
-import { sendSuccess, sendError } from '../utils/response';
-import { AuthRequest, RegisterDto, LoginDto } from '../types';
+import { sendSuccess } from '../utils/response';
+import { AuthRequest, Role } from '../types';
 
 export const register = async (
   req: AuthRequest,
@@ -9,20 +9,9 @@ export const register = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const dto: RegisterDto = req.body;
-
-    if (!dto.fullName || !dto.birthDate || !dto.email || !dto.password) {
-      sendError(res, 'fullName, birthDate, email and password are required', 400);
-      return;
-    }
-
-    const result = await userService.registerUser(dto);
+    const result = await userService.registerUser(req.body);
     sendSuccess(res, result, 201, 'User registered successfully');
   } catch (err) {
-    if (err instanceof Error && err.message.includes('already exists')) {
-      sendError(res, err.message, 409);
-      return;
-    }
     next(err);
   }
 };
@@ -33,24 +22,9 @@ export const login = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const dto: LoginDto = req.body;
-
-    if (!dto.email || !dto.password) {
-      sendError(res, 'email and password are required', 400);
-      return;
-    }
-
-    const result = await userService.loginUser(dto);
+    const result = await userService.loginUser(req.body);
     sendSuccess(res, result, 200, 'Login successful');
   } catch (err) {
-    if (err instanceof Error) {
-      const isAuthError =
-        err.message.includes('Invalid email') || err.message.includes('blocked');
-      if (isAuthError) {
-        sendError(res, err.message, 401);
-        return;
-      }
-    }
     next(err);
   }
 };
@@ -74,35 +48,28 @@ export const getUserById = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const id = req.params['id'] as string;
-    const requesterId = req.user!.userId;
-    const requesterRole = req.user!.role;
-
-    // Только admin или сам пользователь
-    if (requesterRole !== 'ADMIN' && requesterId !== id) {
-      sendError(res, 'Forbidden: you can only view your own profile', 403);
-      return;
-    }
-
-    const user = await userService.getUserById(id);
+    const user = await userService.getUserById(req.params['id'] as string);
     sendSuccess(res, user);
   } catch (err) {
-    if (err instanceof Error && err.message === 'User not found') {
-      sendError(res, err.message, 404);
-      return;
-    }
     next(err);
   }
 };
 
 export const getAllUsers = async (
-  _req: AuthRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const users = await userService.getAllUsers();
-    sendSuccess(res, users);
+    const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query['limit'] as string) || 10));
+    const role = req.query['role'] as Role | undefined;
+    const isActiveRaw = req.query['isActive'] as string | undefined;
+    const isActive =
+      isActiveRaw === 'true' ? true : isActiveRaw === 'false' ? false : undefined;
+
+    const result = await userService.getAllUsers(page, limit, role, isActive);
+    sendSuccess(res, result);
   } catch (err) {
     next(err);
   }
@@ -114,23 +81,9 @@ export const blockUser = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const id = req.params['id'] as string;
-    const requesterId = req.user!.userId;
-    const requesterRole = req.user!.role;
-
-    // Только admin или сам пользователь
-    if (requesterRole !== 'ADMIN' && requesterId !== id) {
-      sendError(res, 'Forbidden: you can only block your own account', 403);
-      return;
-    }
-
-    const user = await userService.blockUser(id);
+    const user = await userService.blockUser(req.params['id'] as string);
     sendSuccess(res, user, 200, 'User blocked successfully');
   } catch (err) {
-    if (err instanceof Error && err.message === 'User not found') {
-      sendError(res, err.message, 404);
-      return;
-    }
     next(err);
   }
 };

@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import { sendError } from '../utils/response';
-import { AuthRequest } from '../types';
+import { AuthRequest, Role } from '../types';
 
 export const authenticate = (
   req: AuthRequest,
@@ -30,8 +30,23 @@ export const requireAdmin = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (req.user?.role !== 'ADMIN') {
+  if (req.user?.role !== Role.ADMIN) {
     sendError(res, 'Forbidden: admin access only', 403);
+    return;
+  }
+  next();
+};
+
+export const requireSelfOrAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const targetId = req.params['id'];
+  const { userId, role } = req.user!;
+
+  if (role !== Role.ADMIN && userId !== targetId) {
+    sendError(res, 'Forbidden: insufficient permissions', 403);
     return;
   }
   next();
