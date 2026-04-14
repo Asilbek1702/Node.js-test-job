@@ -1,6 +1,6 @@
 {
   "name": "user-service",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "User management REST API",
   "main": "dist/server.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "db:migrate": "ts-node src/db/migrate.ts",
+    "seed:admin": "ts-node src/db/seed-admin.ts",
     "test": "jest",
     "test:coverage": "jest --coverage"
   },

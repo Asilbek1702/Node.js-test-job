@@ -214,3 +214,86 @@ describe('GET /health', () => {
     expect(res.body.status).toBe('ok');
   });
 });
+
+// ─── Admin cases ──────────────────────────────────────────────────────────────
+import { signToken } from '../utils/jwt';
+
+const makeAdminToken = (id: string) =>
+  signToken({ userId: id, role: Role.ADMIN });
+
+describe('Admin: GET /api/users/ [list + pagination]', () => {
+  it('admin gets paginated user list', async () => {
+    await reg({ email: 'p1@test.com' });
+    await reg({ email: 'p2@test.com' });
+
+    const adminToken = makeAdminToken('admin-id');
+    store.users.push({
+      id: 'admin-id', full_name: 'Admin', birth_date: '1990-01-01',
+      email: 'admin@test.com', password: 'x',
+      role: Role.ADMIN, is_active: true, created_at: new Date(), updated_at: new Date(),
+    });
+
+    const res = await request(app)
+      .get('/api/users/?page=1&limit=5')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('total');
+    expect(res.body.data).toHaveProperty('page', 1);
+    expect(res.body.data).toHaveProperty('totalPages');
+    expect(Array.isArray(res.body.data.data)).toBe(true);
+  });
+
+  it('admin can filter by role', async () => {
+    const adminToken = makeAdminToken('admin-id-2');
+    store.users.push({
+      id: 'admin-id-2', full_name: 'Admin2', birth_date: '1990-01-01',
+      email: 'admin2@test.com', password: 'x',
+      role: Role.ADMIN, is_active: true, created_at: new Date(), updated_at: new Date(),
+    });
+
+    const res = await request(app)
+      .get('/api/users/?role=ADMIN')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('Admin: GET /api/users/:id', () => {
+  it('admin can view any user', async () => {
+    const r = await reg({ email: 'target@test.com' });
+    const targetId = r.body.data.user.id;
+    const adminToken = makeAdminToken('admin-view-id');
+
+    const res = await request(app)
+      .get(`/api/users/${targetId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe(targetId);
+  });
+
+  it('returns 404 for non-existent user', async () => {
+    const adminToken = makeAdminToken('admin-404-id');
+    const res = await request(app)
+      .get('/api/users/non-existent-uuid')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Admin: PATCH /api/users/:id/block', () => {
+  it('admin can block any user', async () => {
+    const r = await reg({ email: 'blockme@test.com' });
+    const targetId = r.body.data.user.id;
+    const adminToken = makeAdminToken('admin-block-id');
+
+    const res = await request(app)
+      .patch(`/api/users/${targetId}/block`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.is_active).toBe(false);
+  });
+});
